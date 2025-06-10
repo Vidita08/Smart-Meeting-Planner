@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Meeting Planner</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        textarea { width: 80%; height: 150px; margin-bottom: 10px; }
+        button { padding: 10px 15px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Smart Meeting Planner</h1>
+
+    <h2>1. Set Busy Slots (/slots)</h2>
+    <p>Paste JSON payload for user busy times:</p>
+    <textarea id="slotsInput" placeholder='{
+    "users": [
+        { "id": 1, "busy": [["09:00","10:30"], ["13:00","14:00"]] },
+        { "id": 2, "busy": [["11:00","12:00"], ["15:00","16:00"]] }
+    ]
+}'></textarea><br>
+    <button onclick="postSlots()">Update Busy Slots</button>
+    <p id="slotsMessage"></p>
+
+    <h2>2. Suggest Free Windows (/suggest)</h2>
+    <label for="duration">Meeting Duration (minutes):</label>
+    <input type="number" id="duration" value="30">
+    <button onclick="getSuggestions()">Suggest Meeting Times</button>
+    <p id="suggestMessage"></p>
+    <h3>Suggested Free Windows:</h3>
+    <table id="suggestedSlotsTable">
+        <thead>
+            <tr>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+
+    <h2>3. View User Calendar (/calendar/:userId)</h2>
+    <label for="userId">User ID:</label>
+    <input type="text" id="userId" value="1">
+    <button onclick="getUserCalendar()">Show Calendar</button>
+    <p id="calendarMessage"></p>
+    <h3>User Busy Slots:</h3>
+    <ul id="userBusyList"></ul>
+    <h3>User Booked Slots:</h3>
+    <ul id="userBookedList"></ul>
+
+    <script>
+        async function postSlots() {
+            const textarea = document.getElementById('slotsInput');
+            const messageElem = document.getElementById('slotsMessage');
+            try {
+                const data = JSON.parse(textarea.value);
+                const response = await fetch('/slots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    messageElem.textContent = result.message;
+                    messageElem.className = 'success';
+                } else {
+                    messageElem.textContent = `Error: ${result.error}`;
+                    messageElem.className = 'error';
+                }
+            } catch (e) {
+                messageElem.textContent = `Invalid JSON: ${e.message}`;
+                messageElem.className = 'error';
+            }
+        }
+
+        async function getSuggestions() {
+            const duration = document.getElementById('duration').value;
+            const messageElem = document.getElementById('suggestMessage');
+            const tableBody = document.querySelector('#suggestedSlotsTable tbody');
+            tableBody.innerHTML = ''; // Clear previous results
+
+            if (!duration) {
+                messageElem.textContent = "Please enter a duration.";
+                messageElem.className = 'error';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/suggest?duration=${duration}`);
+                const suggestions = await response.json();
+                if (response.ok) {
+                    messageElem.textContent = "Suggestions fetched successfully.";
+                    messageElem.className = 'success';
+                    if (suggestions.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="3">No free slots found.</td></tr>';
+                    } else {
+                        suggestions.forEach(slot => {
+                            const row = tableBody.insertRow();
+                            row.insertCell().textContent = slot[0];
+                            row.insertCell().textContent = slot[1];
+                            const bookCell = row.insertCell();
+                            const bookButton = document.createElement('button');
+                            bookButton.textContent = 'Book (User 1)'; // For simplicity, always book for user 1
+                            bookButton.onclick = () => bookSlot(1, slot[0], slot[1]);
+                            bookCell.appendChild(bookButton);
+                        });
+                    }
+                } else {
+                    messageElem.textContent = `Error: ${suggestions.error}`;
+                    messageElem.className = 'error';
+                }
+            } catch (e) {
+                messageElem.textContent = `Error fetching suggestions: ${e.message}`;
+                messageElem.className = 'error';
+            }
+        }
+
+        async function getUserCalendar() {
+            const userId = document.getElementById('userId').value;
+            const messageElem = document.getElementById('calendarMessage');
+            const busyList = document.getElementById('userBusyList');
+            const bookedList = document.getElementById('userBookedList');
+            busyList.innerHTML = '';
+            bookedList.innerHTML = '';
+
+            if (!userId) {
+                messageElem.textContent = "Please enter a User ID.";
+                messageElem.className = 'error';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/calendar/${userId}`);
+                const calendarData = await response.json();
+                if (response.ok) {
+                    messageElem.textContent = `Calendar for User ${userId} fetched.`;
+                    messageElem.className = 'success';
+                    calendarData.busy_slots.forEach(slot => {
+                        const li = document.createElement('li');
+                        li.textContent = `${slot[0]} - ${slot[1]}`;
+                        busyList.appendChild(li);
+                    });
+                    calendarData.booked_slots.forEach(slot => {
+                        const li = document.createElement('li');
+                        li.textContent = `${slot[0]} - ${slot[1]}`;
+                        bookedList.appendChild(li);
+                    });
+                } else {
+                    messageElem.textContent = `Error: ${calendarData.error}`;
+                    messageElem.className = 'error';
+                }
+            } catch (e) {
+                messageElem.textContent = `Error fetching calendar: ${e.message}`;
+                messageElem.className = 'error';
+            }
+        }
+
+        async function bookSlot(userId, startTime, endTime) {
+            const messageElem = document.getElementById('suggestMessage'); // Use this for booking messages too
+            try {
+                const response = await fetch('/book', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, start_time: startTime, end_time: endTime })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    messageElem.textContent = result.message;
+                    messageElem.className = 'success';
+                    // Re-fetch suggestions to reflect the booking (optional, but good for demo)
+                    getSuggestions();
+                    getUserCalendar(); // Re-fetch calendar to show booked slot
+                } else {
+                    messageElem.textContent = `Error booking: ${result.error}`;
+                    messageElem.className = 'error';
+                }
+            } catch (e) {
+                messageElem.textContent = `Error during booking: ${e.message}`;
+                messageElem.className = 'error';
+            }
+        }
+    </script>
+</body>
+</html>
