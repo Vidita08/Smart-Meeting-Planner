@@ -13,22 +13,26 @@ This project implements a tiny service to help plan meetings by suggesting commo
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/smart-meeting-planner.git](https://github.com/your-username/smart-meeting-planner.git)
+    git clone [[https://github.com/Vidita08/smart-meeting-planner.git](https://github.com/Vidita08/Smart-Meeting-Planner.git)]
     cd smart-meeting-planner
     ```
 
-2.  **Install Flask:**
+2.  **Create virtual environment**
+    ```bash
+    python -m venv venv
+    
+3.  **Install Flask:**
     ```bash
     pip install Flask
     ```
 
-3.  **Run the Flask application:**
+4.  **Run the Flask application:**
     ```bash
     python app.py
     ```
     The application will typically run on `http://127.0.0.1:5000/`.
 
-4.  **Open the front-end:**
+5.  **Open the front-end:**
     Navigate to `http://127.0.0.1:5000/` in your web browser.
 
 ## How to Use
